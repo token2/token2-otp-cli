@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>TOTP Viewer</title>
+  
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h1, h2 {
+      color: #333;
+    }
+    ul, ol {
+      margin-left: 20px;
+    }
+    a {
+      color: #007bff;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    span {
+      font-weight: bold;
+    }
+	 ul, ol {
+      margin-left: 20px;
+    }
+    li {
+      margin-bottom: 10px; /* Increase vertical distance between lines */
+    }
+	img {
+      margin-bottom: 5px; 
+	  margin-top: 5px; 
+    }
+    code {
+      background-color: #f5f5f5;
+      border: 1px solid #ccc;
+      padding: 2px 2px;
+      border-radius: 4px;
+	   
+      font-family: Consolas, monospace;
+    }
+  </style>
+  
+</head>
+<body>
+
+<h1>TOTP Viewer</h1>
+
+<p>The TOTP Viewer is a simple GUI wrapper for T2F2 OTP Cli Python application that allows you to manage and view Time-Based One-Time Password (TOTP) stored on your Token2 FIDO security keys. 
+It provides a user-friendly interface to fetch, display, and manage your TOTP codes.</p>
+
+<h2>Features</h2>
+
+<ul>
+  <li>Fetch and display TOTP codes stored on the device</li>
+  <li>Automatically update countdowns for TOTP codes.</li>
+  <li>Copy TOTP codes to clipboard for easy usage.</li>
+  <li>Add new accounts with default or custom settings.</li>
+  <li>Delete accounts.</li>
+  <li>Generate test TOTP accounts for testing purposes.</li>
+</ul>
+
+<h2>Installation</h2>
+
+<ol>
+  <li>Make sure you have the T2F2 OTP Cli Python application installed and running on your system. You can test it using <code>python app.py get_all</code></li>
+  
+  <li>Run the TOTP Viewer from the folder where the main app.py script is located using the following command: <code>python gui/ui.py</code></li>
+</ol>
+
+<h2>Usage</h2>
+
+<ul>
+  <li>Launch the TOTP Viewer app.</li>
+  <li>The main window will display a table with your TOTP codes.
+    <br>
+  <img src=account_list.png>
+  <br>
+  </li>
+  <li>Double-click on a TOTP code to copy it to the clipboard.</li>
+  <li>An OTP profile may be additionally protected by requiring to touch the device's button. For those profiles, the OTP column will show 'None' as the value. To retrieve the OTP of such profiles, you doubleclick on the row and confirm the operation by touching the button. The OTP will be shown in the console separately as illustrated below.<br>
+  <br>
+  <img src=protected_otp.png>
+  <br>
+  <i>Please note that this does not apply to NFC method - the button press when NFC used as data transport method is replaced by a tap, and if the device is placed on the NFC reader device, its presence is considered meeting the tap requirement.</i><br>
+  </li>
+  <li>Click on an account and choose the "File -> Delete Account" menu to delete it.</li>
+  <li>Use the "File -> Add Account" menu to add new accounts with default or custom settings.
+    <br>
+  <img src=add_account.png>
+  <br>
+  
+  </li>
+  <li>Use the "File -> Generate Test Accounts" menu to generate test TOTP accounts for testing purposes.</li>
+  <li>Use the "File -> Erase All Accounts" menu to completely remove all accounts stored on the security key. <b>Warning: this action is irreversible!</b></li>
+  <li>Use the "Help" menu to access additional options like "Readme" and "About".</li>
+</ul>
+
+<h2>Contact</h2>
+
+<p>For any questions or issues, please contact <span>Token2 Support Team</span> at <span><a href="mailto:support@token2.com">suport@token2.com</a></span>.</p>
+
+<h2>License</h2>
+
+<p>This project is licensed under the <a href="https://opensource.org/licenses/MIT" target=_blank>MIT License</a>.</p>
+
+</body>
+</html>

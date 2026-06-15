@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "token2-otp-cli"
+version = "0.2.0"
+description = "CLI tool (and optional GUI) for managing TOTP/HOTP entries on Token2 T2F2 / PIN+ hardware security keys"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Token2 OTP CLI Contributors" }
+]
+keywords = ["otp", "totp", "hotp", "fido2", "security-key", "token2", "2fa"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Security :: Cryptography",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+]
+
+dependencies = [
+    "hidapi~=0.14.0",
+    "pyscard~=2.0.7",
+    "ecdsa~=0.18.0",
+    "pycryptodome~=3.18.0",
+    "pyperclip",
+]
+
+[project.optional-dependencies]
+gui = ["pyperclip"]
+
+[project.urls]
+Homepage = "https://github.com/<your-org>/token2-otp-cli"
+Documentation = "https://github.com/<your-org>/token2-otp-cli/blob/main/docs/Token2-OTP-SDK-Protocol.md"
+Issues = "https://github.com/<your-org>/token2-otp-cli/issues"
+
+[tool.setuptools]
+py-modules = ["app", "button_otp"]
+
+[tool.setuptools.packages.find]
+include = ["token2*", "transports*", "cli_args*", "gui*"]
