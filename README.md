@@ -28,7 +28,7 @@ over USB or NFC/PC-SC.
 - 🖥️ Optional **Tkinter GUI** (TOTP Viewer): live-updating table, clipboard copy,
   add/delete accounts, test-account generator
 - 🔒 **OTP PIN (privacy protection)**: set / verify / change / remove / lock /
-  status, with client-side PIN-policy validation (R3.4 / manual V1.2)
+  status, with client-side PIN-policy validation (**only for devices running firmware R3.4 or later**)
 - 🧾 JSON output mode (`--json`) for scripting and automation
 - 📚 Full wire-protocol documentation for building your own integrations
 
