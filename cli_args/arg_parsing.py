@@ -9,6 +9,9 @@ parser = argparse.ArgumentParser(
 )
 
 parser.add_argument("--json", action='store_const', const=True, default=False)
+parser.add_argument("--transport", choices=["usb", "pcsc", "apdu-hid"], default=None,
+                    help="force a transport: pcsc (CCID/NFC) or usb. Default: auto. "
+                         "Use pcsc if the HID interface is disabled.")
 subparsers = parser.add_subparsers(help='command to be executed', dest='command')
 
 read_serial_no_parser = subparsers.add_parser('read_serial_no',
@@ -32,12 +35,16 @@ delete_btn_seed_parser = subparsers.add_parser('delete_btn_seed',
                                                help='delete the seed of HOTP generator triggered by button press')
 
 get_all_parser = subparsers.add_parser('get_all', help='get all OTP entries')
+get_all_parser.add_argument("--pin", type=ArgBytes(min=1, max=64), default=None,
+                            help="OTP PIN, if the device is PIN-protected")
 
 read_entry_parser = subparsers.add_parser('read_entry', help='read a particular OTP entry')
 read_entry_parser.add_argument("--app-name", default='', type=ArgBytes(min=0, max=64),
                                help="target entry's application name (optional)")
 read_entry_parser.add_argument("--account-name", type=ArgBytes(min=1, max=64), required=True,
                                help="target entry's account name")
+read_entry_parser.add_argument("--pin", type=ArgBytes(min=1, max=64), default=None,
+                               help="OTP PIN, if the device is PIN-protected")
 
 write_entry_parser = subparsers.add_parser('write_entry', help='write or update an OTP entry on the token')
 write_entry_parser.add_argument("--type", default="TOTP", type=ArgEnumType(OTPType),
@@ -65,6 +72,27 @@ delete_entry_parser.add_argument("--account-name", type=ArgBytes(min=1, max=64),
                                  help="target entry's account name")
 
 erase_all_parser = subparsers.add_parser('erase_all', help='erase all OTP entries on the token')
+
+# --- R3.4 optional PIN ---
+set_pin_parser = subparsers.add_parser('set_pin', help='set the OTP PIN (privacy protection)')
+set_pin_parser.add_argument("--pin", type=ArgBytes(min=1, max=64), required=True,
+                            help="PIN to set (min 6 digits, or min 10 chars if alphanumeric)")
+
+verify_pin_parser = subparsers.add_parser('verify_pin', help='verify the OTP PIN (opens the read window)')
+verify_pin_parser.add_argument("--pin", type=ArgBytes(min=1, max=64), required=True,
+                               help="the OTP PIN")
+
+change_pin_parser = subparsers.add_parser('change_pin', help='change the OTP PIN')
+change_pin_parser.add_argument("--old-pin", type=ArgBytes(min=1, max=64), required=True)
+change_pin_parser.add_argument("--new-pin", type=ArgBytes(min=1, max=64), required=True)
+
+remove_pin_parser = subparsers.add_parser('remove_pin', help='remove the OTP PIN')
+remove_pin_parser.add_argument("--pin", type=ArgBytes(min=1, max=64), required=True,
+                               help="the current OTP PIN")
+
+lock_pin_parser = subparsers.add_parser('lock_pin', help='immediately end the verified window')
+
+pin_status_parser = subparsers.add_parser('pin_status', help='show whether an OTP PIN is set')
 
 args = parser.parse_args()
 

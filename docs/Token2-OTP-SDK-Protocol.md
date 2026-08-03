@@ -176,6 +176,11 @@ All commands are `CLA INS P1 P2`. Read the table top-to-bottom:
 | `ENUM_CODES` | `80 C5 05 00` | host→dev: subcommand + args | none | §1.4 |
 | `ENUM_CODES_CONTINUE` | `80 C5 05 01` | host→dev: 8-byte timestamp | none | §1.5 |
 | `WRITE_SEED` | `80 C5 05 02` | host→dev: ECDH blob, or empty for erase-all | yes (IV-1) | §1.3 |
+| `READ_OTP_PIN_FLAG` | `80 C5 05 04` | host→dev: Lc (04/09/29); dev→host: PIN status | none / IV+EncRand | §1.12 |
+| `SET_OTP_PIN` | `80 C5 05 05` | host→dev: IV+NewPinEnc+NewPinAuth | yes (session) | §1.13 |
+| `VERIFY_OTP_PIN` | `80 C5 05 06` | host→dev: IV+PinHashEnc | yes (session) | §1.14 |
+| `CHANGE_OTP_PIN` | `80 C5 05 08` | host→dev: IV+NewPinEnc+NewPinAuth+PinHashEnc | yes (session) | §1.15 |
+| `READ_AGREEMENT_PUBKEY` | `80 C5 05 09` | host→dev: host P-256 pubkey; dev→host: dev pubkey+ECC521 sig | none | §1.16 |
 | `GET_INFO` *(FIDO applet)* | `80 33 00 00` | host→dev: 18-byte info request | none | (reference client only) |
 
 The subcommand byte for `ENUM_CODES`:
@@ -409,6 +414,73 @@ So the host reads `sn_len` ASCII bytes and hex-decodes them. (Yes, the SN is dou
 
 ---
 
+
+### 6.11 OTP PIN (privacy protection) — R3.4 / manual V1.2
+
+The OTP PIN gates read access to stored codes. When set, enumeration returns
+encrypted data and the host must run a **session handshake** and **verify** the
+PIN to open a read window. All PIN commands use short-form Lc and run over an
+authenticated ECDH session established per connection.
+
+**Session handshake (`READ_AGREEMENT_PUBKEY`, `80 C5 05 09`).**
+Host sends its ephemeral P-256 public key (64 bytes, X‖Y). Device returns its
+own agreement public key (64 bytes) followed by an ECC-P521 signature (132
+bytes, `r‖s`) over `hostPub ‖ devPub`. The host should verify this signature
+against the device's known ECC521 key.
+
+**Session key derivation** (all HMAC-SHA256):
+
+```
+shared      = ECDH-P256(hostPriv, devPub).X            # 32 bytes
+pu1Key      = shared
+pu1PRKey    = HMAC(key = 0x00*32,  data = pu1Key)
+SessionMacKey = HMAC(key = pu1PRKey, data = "TOTP HMAC key" || 0x01)
+SessionEncKey = HMAC(key = pu1PRKey, data = "TOTP AES key"  || 0x01)
+```
+
+**PIN flag (`READ_OTP_PIN_FLAG`, `80 C5 05 04`).** The device returns as many
+bytes as the request's Lc:
+
+| Lc | Returns |
+|---|---|
+| `04` | `PinAlgId, PinRetry, OtpPinLen, PinMaxRetry` |
+| `09` | above + `PubVer(2)`, `PubCrc(2)` |
+| `29` | above + `IV(16)`, `EncRand(16)` (the verify challenge) |
+
+`OtpPinLen == 0` means **no PIN set**. On a device that has never had a PIN,
+`PinAlgId` and `PinRetry` are also `00`.
+
+**Set PIN (`SET_OTP_PIN`, `80 C5 05 05`)** — only from the unprotected state
+(`OtpPinLen == 0`); returns `6A81` if a PIN already exists.
+
+```
+NewPin      = 0x07 || PinRetry(0x64) || OtpPinLen || OtpPin      # AlgId=07 = AES256
+NewPin      = PKCS#5/7 pad to 16
+IV          = random(16)
+NewPinEnc   = AES-256-CBC(SessionEncKey, IV, NewPin)
+NewPinAuth  = HMAC(SessionMacKey, NewPinEnc)[0:16]
+data field  = IV || NewPinEnc || NewPinAuth
+```
+
+**Verify PIN (`VERIFY_OTP_PIN`, `80 C5 05 06`).** Read the `Lc=29` flag to get
+`IV` + `EncRand`; decrypt `Rand = AES-256-CBC-dec(SessionEncKey, IV, EncRand)`;
+send `IV' || PinHashEnc` where `PinHashEnc` binds the PIN to `Rand`. `9000`
+opens the read window (default 5 minutes); afterwards `ENUM_CODES` returns
+plaintext until the window closes or `lock` is sent.
+
+**Change / remove PIN (`CHANGE_OTP_PIN`, `80 C5 05 08`).** Same as Set but the
+data field also carries the current-PIN proof (`PinHashEnc`). Removing a PIN is
+a change to `OtpPinLen == 0`. Unlike Set, Change works from the protected state.
+
+**Once a PIN is set**, `ENUM_CODES` (`READ_ALL`) returns `IV || EncData ||
+EncDataAuth`; the host decrypts `EncData` under `SessionEncKey` after a
+successful verify.
+
+**Reset.** There is no PIN-only firmware reset. `WRITE_SEED` with an empty body
+(`erase_all`) wipes all OTP data and returns PIN state to `OtpPinLen == 0`,
+`PinAlgId == 0`. Use this to recover a locked PIN (§9).
+
+
 ## 7. ECDH + AES payload encryption
 
 A handful of commands (`WRITE_SEED`, `WRITE_HOTP_SEED`) carry secrets and are wrapped in an ECDH-derived AES-CBC blob.
@@ -535,6 +607,19 @@ Mirror the reference: a base "expected, surface to the user" exception and:
 ---
 
 ## 9. Validation rules to enforce client-side
+
+**OTP PIN policy** (the firmware rejects violations with `6A80`; enforce
+client-side for a clear error):
+
+*Numeric PINs* — minimum 6 digits (configurable upward, 6 is the floor):
+- no ascending or descending sequences (`123456`, `654321`)
+- no all-identical digits (`111111`)
+- no palindrome / mirror numbers (`321123`, `69233296`)
+- no single digit repeating more than 3 times (`111123`, `990000`)
+
+*Alphanumeric PINs* — minimum 10 characters; must include at least two of:
+uppercase `A-Z`, lowercase `a-z`, digits `0-9`, special characters.
+
 
 Doing these before hitting the wire saves a round-trip and gives better error messages:
 
