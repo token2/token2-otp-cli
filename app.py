@@ -23,7 +23,23 @@ def process_command(args):
     use_debug = os.environ.get('DEBUG_COMMS') == '1'
 
     try:
-        transport = detect_token(ask_button_cb=button_required_cb, debug=use_debug)
+        import os as _os
+        # Explicit choice (CLI --transport or TOKEN2_TRANSPORT env) always wins.
+        prefer = getattr(args, 'transport', None) or _os.environ.get("TOKEN2_TRANSPORT")
+        # Otherwise, auto-route per command. set_pin (write from unprotected state)
+        # is the one command the PC/SC path rejects with 6A80 in shared mode; it
+        # defaults to the direct-CCID transport. All other PIN ops work over PC/SC.
+        # Any explicit --transport/env overrides this (e.g. to try exclusive PC/SC).
+        # All PIN commands (set/verify/change/remove/lock/status) work over PC/SC.
+        # Default them to it; --transport apdu-hid is available for direct CCID
+        # on platforms/setups where that's preferred.
+        pcsc_pin_cmds = {'set_pin', 'verify_pin', 'change_pin', 'remove_pin',
+                         'lock_pin', 'pin_status'}
+        _cmd = getattr(args, 'command', None)
+        if not prefer and _cmd in pcsc_pin_cmds:
+            prefer = 'pcsc'
+        transport = detect_token(ask_button_cb=button_required_cb, debug=use_debug,
+                                 prefer=prefer)
     except TokenNotDetected:
         if args.json:
             print(json.dumps({"_error": "Unable to detect the device."}))
@@ -35,6 +51,14 @@ def process_command(args):
     token = Token2(transport)
 
     ts = int(datetime.datetime.now().timestamp())
+
+    # If the reads need an unlocked window and the user supplied --pin, verify first.
+    if getattr(args, 'command', None) in ('get_all', 'read_entry') and getattr(args, 'pin', None):
+        try:
+            if token.pin_flag().pin_set:
+                token.unlock(args.pin)
+        except Exception:
+            pass
 
     try:
         if args.command == 'read_serial_no':
@@ -95,9 +119,43 @@ def process_command(args):
             )
             token.write_entry(entry)
 
+        elif args.command == 'pin_status':
+            flag = token.pin_flag()
+            if args.json:
+                print(json.dumps({"pin_set": flag.pin_set, "retry_left": flag.pin_retry,
+                                  "max_retry": flag.max_retry}))
+            else:
+                if flag.pin_set:
+                    print(f"OTP PIN is set ({flag.pin_retry}/{flag.max_retry} attempts left)")
+                else:
+                    print("No OTP PIN set")
+
+        elif args.command == 'set_pin':
+            # Match the companion app exactly: handshake then SET, with NO flag
+            # read in between. An intervening flag read changes device state and
+            # causes SET to return 6A80.
+            session = token.open_pin_session()
+            session.set_pin(args.pin)
+
+        elif args.command == 'verify_pin':
+            token.unlock(args.pin)
+
+        elif args.command == 'change_pin':
+            session = token.open_pin_session()
+            session.read_flag()
+            session.change_pin(args.old_pin, args.new_pin)
+
+        elif args.command == 'remove_pin':
+            session = token.open_pin_session()
+            session.read_flag()
+            session.delete_pin(args.pin)
+
+        elif args.command == 'lock_pin':
+            token.open_pin_session().lock()
+
         elif args.command == 'erase_all':
             token.erase_all()
-    except ExpectedCommandError as e:
+    except (ExpectedCommandError, ValueError) as e:
         has_fail = True
 
         if args.json:

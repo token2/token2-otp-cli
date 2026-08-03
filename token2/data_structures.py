@@ -16,6 +16,13 @@ class CommandType(Enum):
     CMD_ENUM_CODES = (0x80, 0xC5, 0x05, 0x00)
     CMD_ENUM_CODES_CONTINUE = (0x80, 0xC5, 0x05, 0x01)
     CMD_GET_INFO = (0x80, 0x33, 0x00, 0x00)
+    # R3.4 optional-PIN commands (manual V1.2, 1.12-1.19)
+    CMD_READ_AGREEMENT_PUBKEY = (0x80, 0xC5, 0x05, 0x09)
+    CMD_READ_OTP_PIN_FLAG = (0x80, 0xC5, 0x05, 0x04)
+    CMD_SET_OTP_PIN = (0x80, 0xC5, 0x05, 0x05)
+    CMD_VERIFY_OTP_PIN = (0x80, 0xC5, 0x05, 0x06)
+    CMD_CHANGE_OTP_PIN = (0x80, 0xC5, 0x05, 0x08)
+    CMD_GET_OTP_ACCOUNT_CAPACITY = (0x80, 0xC5, 0x05, 0x03)
 
 
 class EnumCodesSubCommand(Enum):
@@ -28,8 +35,12 @@ class EnumCodesSubCommand(Enum):
 class APDU:
     hdr: CommandType
     data: bytes
+    force_short_lc: bool = False   # PIN commands require short-form Lc
 
     def serialize(self, extended_length=True):
+        import os as _os
+        if self.force_short_lc:
+            extended_length = False
         buf = io.BytesIO()
         cla, ins, p1, p2 = self.hdr.value
         buf.write(bytes([cla, ins, p1, p2]))
@@ -38,6 +49,10 @@ class APDU:
         else:
             buf.write(b"\x00" + struct.pack(">H", len(self.data)))
         buf.write(self.data)
+
+        # Optional case-4 fallback for T=0 readers: append Le=00 on PIN commands.
+        if self.force_short_lc and _os.environ.get("APPEND_LE") == "1":
+            buf.write(b"\x00")
 
         return buf.getvalue()
 

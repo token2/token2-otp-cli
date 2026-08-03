@@ -27,6 +27,8 @@ over USB or NFC/PC-SC.
 - 🖱️ "Button required" flag for an extra confirmation step on sensitive entries
 - 🖥️ Optional **Tkinter GUI** (TOTP Viewer): live-updating table, clipboard copy,
   add/delete accounts, test-account generator
+- 🔒 **OTP PIN (privacy protection)**: set / verify / change / remove / lock /
+  status, with client-side PIN-policy validation (R3.4 / manual V1.2)
 - 🧾 JSON output mode (`--json`) for scripting and automation
 - 📚 Full wire-protocol documentation for building your own integrations
 
@@ -168,7 +170,44 @@ Only PIN+ series keys have the serial number printed on the case.
 python3 app.py read_serial_no
 ```
 
-#### Scripting / JSON output
+#### OTP PIN (privacy protection)
+
+The OTP PIN gates read access to stored codes. Set it once, then verify to open
+a read window before listing codes.
+
+```bash
+# Show whether a PIN is set
+python app.py pin_status
+
+# Set a PIN (only when none is set yet)
+python app.py set_pin --pin 3219918
+
+# Verify to open the read window, then read codes
+python app.py verify_pin --pin 3219918
+python app.py get_all --pin 3219918
+
+# Change or remove the PIN
+python app.py change_pin --old-pin 3219918 --new-pin 4820571
+python app.py remove_pin --pin 4820571
+
+# End the verified window immediately
+python app.py lock_pin
+```
+
+**PIN policy.** The firmware rejects weak PINs; the CLI validates client-side
+first and explains why. Numeric PINs must be ≥ 6 digits and must not be
+sequential (`123456`/`654321`), all-identical (`111111`), palindromes
+(`321123`), or contain a digit more than 3 times (`111123`). Alphanumeric PINs
+must be ≥ 10 characters using at least two of {upper, lower, digit, special}.
+
+**Transport.** PIN commands run over PC/SC by default. Direct CCID-over-USB is
+also available with `--transport apdu-hid` (needs a libusb backend, and on
+Windows a WinUSB binding on the CCID interface).
+
+**Reset.** There's no PIN-only reset. `remove_pin` clears a PIN you know;
+`erase_all` wipes all OTP data and PIN state (use it to recover a locked PIN).
+
+### Scripting / JSON output
 
 Add `--json` to any command for machine-readable output, e.g.:
 
