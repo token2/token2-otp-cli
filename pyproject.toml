@@ -24,7 +24,7 @@ classifiers = [
 
 dependencies = [
     "hidapi~=0.14.0",
-    "pyscard~=2.0.7",
+    "pyscard~=2.3.0",
     "ecdsa~=0.18.0",
     "pycryptodome~=3.18.0",
     "pyperclip",
